@@ -1,5 +1,7 @@
 namespace LZ4SharpCustom
 {
+    using LZ4Sharp;
+
     /// <summary>
     /// Static LZ4 Compression and Decompression. This is threadsafe because it creates new instances of the
     /// compression/decompression classes for each method call.

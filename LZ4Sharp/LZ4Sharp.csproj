@@ -100,10 +100,8 @@
     <Compile Include="ILZ4Decompressor.cs" />
     <Compile Include="LZ4.cs" />
     <Compile Include="LZ4Compressor32.cs" />
-    <Compile Include="LZ4Compressor64.cs" />
     <Compile Include="LZ4CompressorFactory.cs" />
     <Compile Include="LZ4Decompressor32.cs" />
-    <Compile Include="LZ4Decompressor64.cs" />
     <Compile Include="LZ4DecompressorFactory.cs" />
     <Compile Include="LZ4HC32Compressor.cs" />
     <Compile Include="LZ4Util.cs" />

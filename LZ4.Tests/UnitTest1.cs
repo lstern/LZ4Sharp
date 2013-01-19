@@ -6,6 +6,8 @@ namespace LZ4.Tests
     using System.IO;
     using System.Linq;
 
+    using LZ4Sharp;
+
     using LZ4SharpCustom;
 
     [TestClass]

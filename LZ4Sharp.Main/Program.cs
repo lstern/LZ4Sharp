@@ -41,10 +41,10 @@ namespace LZ4SharpCustom.Main
             // decompressed should equal yourBytesHere. If not please report a bug.
             */
 
-            Console.WriteLine("Test LZ4 64 bit compression");
-            TestEmpty(new LZ4Compressor64(), new LZ4Decompressor64());
-            Test(args[0], new LZ4Compressor64(), new LZ4Decompressor64());
-            TestUnknownSize(args[0], new LZ4Compressor64(), new LZ4Decompressor64());
+            //Console.WriteLine("Test LZ4 64 bit compression");
+            //TestEmpty(new LZ4Compressor64(), new LZ4Decompressor64());
+            //Test(args[0], new LZ4Compressor64(), new LZ4Decompressor64());
+            //TestUnknownSize(args[0], new LZ4Compressor64(), new LZ4Decompressor64());
 
             Console.WriteLine("Done. Press a key.");
             Console.ReadLine();
