@@ -116,9 +116,6 @@
     <Content Include="..\License.txt">
       <Link>License.txt</Link>
     </Content>
-    <Content Include="..\Readme.txt">
-      <Link>Readme.txt</Link>
-    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.Targets" />
   <PropertyGroup>
