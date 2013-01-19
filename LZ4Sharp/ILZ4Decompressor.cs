@@ -1,6 +1,8 @@
 ﻿using System;
-namespace LZ4Sharp
+namespace LZ4SharpCustom
 {
+    using System.IO;
+
     public interface ILZ4Decompressor
     {
         unsafe int Decompress(byte* compressedBuffer, byte* decompressedBuffer, int compressedSize, int maxDecompressedSize);
@@ -11,5 +13,6 @@ namespace LZ4Sharp
         unsafe int DecompressKnownSize(byte* compressed, byte* decompressedBuffer, int decompressedSize);
         void DecompressKnownSize(byte[] compressed, byte[] decompressed);
         int DecompressKnownSize(byte[] compressed, byte[] decompressedBuffer, int decompressedSize);
+        int DecompressFromReader(Stream reader, byte[] decompressedBuffer, int decompressedSize);
     }
 }

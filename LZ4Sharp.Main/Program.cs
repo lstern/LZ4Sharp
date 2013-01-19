@@ -5,8 +5,12 @@ using System.Text;
 using System.Diagnostics;
 using System.IO;
 
-namespace LZ4Sharp.Main
+namespace LZ4SharpCustom.Main
 {
+    using LZ4Sharp;
+
+    using LZ4SharpCustom;
+
     class Program
     {
         public static void Main(string[] args)

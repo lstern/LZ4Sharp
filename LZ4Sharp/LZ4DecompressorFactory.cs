@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
-namespace LZ4Sharp
+namespace LZ4SharpCustom
 {
     public static class LZ4DecompressorFactory
     {

@@ -6,7 +6,7 @@
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <OutputType>Library</OutputType>
     <RootNamespace>LZ4Sharp</RootNamespace>
-    <AssemblyName>LZ4Sharp</AssemblyName>
+    <AssemblyName>LZ4Sharp-Custom</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
@@ -105,6 +105,7 @@
     <Compile Include="LZ4Decompressor32.cs" />
     <Compile Include="LZ4Decompressor64.cs" />
     <Compile Include="LZ4DecompressorFactory.cs" />
+    <Compile Include="LZ4HC32Compressor.cs" />
     <Compile Include="LZ4Util.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

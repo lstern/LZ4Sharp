@@ -6,11 +6,9 @@ using System.Diagnostics;
 
 namespace LZ4Sharp
 {
+    using System.IO;
 
-
-
-
-
+    using LZ4SharpCustom;
 
     /// <summary>
     /// Class for compressing a byte array into an LZ4 byte array.
@@ -122,6 +120,11 @@ namespace LZ4Sharp
                     return Compress64K(s, d, count, dest.Length - dstOffset);
                 return Compress(s, d, count, dest.Length - dstOffset);
             }
+        }
+
+        public int Compress(byte[] source, Stream dest)
+        {
+            throw new NotImplementedException();
         }
 
         int Compress(byte* source, byte* dest, int isize, int maxOutputSize)

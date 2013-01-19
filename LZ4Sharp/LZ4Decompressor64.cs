@@ -4,12 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 
-namespace LZ4Sharp
+namespace LZ4SharpCustom
 {
-
-
-
-
+    using System.IO;
 
     /// <summary>
     /// Class for decompressing an LZ4 compressed byte array.
@@ -47,84 +44,288 @@ namespace LZ4Sharp
                 return DecompressKnownSize(src, dst, decompressedSize);
         }
 
-        public int DecompressKnownSize(byte* compressed, byte* decompressedBuffer, int decompressedSize)
+        public int DecompressFromReader(Stream reader, byte[] decompressedBuffer, int decompressedSize)
         {
-            fixed (sbyte* dec = m_DecArray)
+            throw new NotImplementedException();
+        }
 
-            fixed(sbyte* dec2Ptr = m_Dec2table)
+        public int DecompressFromReader(BinaryReader reader, byte[] decompressedBuffer, int decompressedSize)
+        {
+            fixed (byte* dst = decompressedBuffer)
+                return this.DecompressFromReader(reader, dst, decompressedSize);
+        }
 
+        public int DecompressFromReader(BinaryReader reader, byte* decompressedBuffer, int decompressedSize)
+        {
+            fixed (sbyte* dec = this.m_DecArray)
+
+            fixed (sbyte* dec2Ptr = this.m_Dec2table)
             {
                 // Local Variables
-                byte* ip = (byte*)compressed;
                 byte* r;
 
-                byte* op = (byte*)decompressedBuffer;
+                byte* op = decompressedBuffer;
                 byte* oend = op + decompressedSize;
-                byte* cpy;
-
-                byte token;
-                int len, length;
-
 
                 // Main Loop
                 while (true)
                 {
                     // get runLength
-                    token = *ip++;
-                    if ((length = (token >> LZ4Util.ML_BITS)) == LZ4Util.RUN_MASK) { for (; (len = *ip++) == 255; length += 255) { } length += len; }
+                    byte token = reader.ReadByte(); // *ip++;
+                    int length;
+                    if ((length = token >> LZ4Util.ML_BITS) == LZ4Util.RUN_MASK)
+                    {
+                        int len;
+                        for (; (len = reader.ReadByte()) == 255; length += 255)
+                        {
+                        }
 
+                        length += len;
+                    }
 
-                    cpy = op + length;
+                    byte* cpy = op + length;
                     if (cpy > oend - LZ4Util.COPYLENGTH)
                     {
-                        if (cpy > oend) goto _output_error;
-                        LZ4Util.CopyMemory(op, ip, length);
-                        ip += length;
+                        if (cpy > oend)
+                        {
+                            goto _output_error;
+                        }
+
+                        LZ4Util.CopyMemory(op, reader, length);
                         break;
                     }
 
-                    do { *(ulong*)op = *(ulong*)ip; op+=8; ip+=8; } while (op<cpy);; ip -= (op - cpy); op = cpy;
+                    do
+                    {
+                        *(ulong*)op = reader.ReadUInt64();
+                        op += 8;
+                    }
+                    while (op < cpy);
 
+                    reader.BaseStream.Position -= op - cpy;
+                    op = cpy;
 
                     // get offset
-                    { r = (cpy) - *(ushort*)ip; }; ip+=2;
-     if(r < decompressedBuffer) goto _output_error;
+                    {
+                        r = cpy - reader.ReadUInt16();
+                    }
+
+                    if (r < decompressedBuffer)
+                    {
+                        goto _output_error;
+                    }
 
                     // get matchLength
-                    if ((length = (int)(token & LZ4Util.ML_MASK)) == LZ4Util.ML_MASK) { for (; *ip == 255; length += 255) { ip++; } length += *ip++; }
+                    if ((length = (int)(token & LZ4Util.ML_MASK)) == LZ4Util.ML_MASK)
+                    {
+                        for (; reader.ReadByte() == 255; length += 255)
+                        {
+                        }
+
+                        length += reader.ReadByte();
+                    }
 
                     // copy repeated sequence
                     if (op - r < STEPSIZE)
                     {
-
-                        var dec2 = dec2Ptr[(int)(op-r)];
-
-
-
-
+                        var dec2 = dec2Ptr[(int)(op - r)];
 
                         *op++ = *r++;
                         *op++ = *r++;
                         *op++ = *r++;
                         *op++ = *r++;
                         r -= dec[op - r];
-                        *(uint*)op = *(uint*)r; op += STEPSIZE - 4;
+                        *(uint*)op = *(uint*)r;
+                        op += STEPSIZE - 4;
                         r -= dec2;
                     }
-                    else { *(ulong*)op = *(ulong*)r; op+=8; r+=8;; }
+                    else
+                    {
+                        *(ulong*)op = *(ulong*)r;
+                        op += 8;
+                        r += 8;
+                    }
+
                     cpy = op + length - (STEPSIZE - 4);
                     if (cpy > oend - LZ4Util.COPYLENGTH)
                     {
-                        if (cpy > oend) goto _output_error;
+                        if (cpy > oend)
+                        {
+                            goto _output_error;
+                        }
 
-                        if (op<(oend - LZ4Util.COPYLENGTH)) do { *(ulong*)op = *(ulong*)r; op+=8; r+=8; } while (op<(oend - LZ4Util.COPYLENGTH));;
-                        while (op < cpy) *op++ = *r++;
+                        while (op < (oend - LZ4Util.COPYLENGTH))
+                        {
+                            *(ulong*)op = *(ulong*)r;
+                            op += 8;
+                            r += 8;
+                        }
+
+                        while (op < cpy)
+                        {
+                            *op++ = *r++;
+                        }
+
                         op = cpy;
-                        if (op == oend) break;
+                        if (op == oend)
+                        {
+                            break;
+                        }
+
                         continue;
                     }
 
-                    if (op<cpy) do { *(ulong*)op = *(ulong*)r; op+=8; r+=8; } while (op<cpy);;
+                    while (op < cpy)
+                    {
+                        *(ulong*)op = *(ulong*)r;
+                        op += 8;
+                        r += 8;
+                    }
+
+                    op = cpy; // correction
+                }
+
+                // end of decoding
+                return (int)0; // (((byte*)ip) - compressed);
+
+                // write overflow error detected
+            _output_error:
+                return (int)-1; //(-(((byte*)ip) - compressed));
+            }
+        }
+
+        public int DecompressKnownSize(byte* compressed, byte* decompressedBuffer, int decompressedSize)
+        {
+            fixed (sbyte* dec = this.m_DecArray)
+
+            fixed (sbyte* dec2Ptr = this.m_Dec2table)
+            {
+                // Local Variables
+                byte* ip = compressed;
+                byte* r;
+
+                byte* op = decompressedBuffer;
+                byte* oend = op + decompressedSize;
+
+                // Main Loop
+                while (true)
+                {
+                    // get runLength
+                    byte token = *ip++;
+                    int length;
+                    if ((length = token >> LZ4Util.ML_BITS) == LZ4Util.RUN_MASK)
+                    {
+                        int len;
+                        for (; (len = *ip++) == 255; length += 255)
+                        {
+                        }
+
+                        length += len;
+                    }
+
+                    byte* cpy = op + length;
+                    if (cpy > oend - LZ4Util.COPYLENGTH)
+                    {
+                        if (cpy > oend)
+                        {
+                            goto _output_error;
+                        }
+
+                        LZ4Util.CopyMemory(op, ip, length);
+                        ip += length;
+                        break;
+                    }
+
+                    do
+                    {
+                        *(ulong*)op = *(ulong*)ip;
+                        op += 8;
+                        ip += 8;
+                    }
+                    while (op < cpy);
+
+                    ip -= op - cpy;
+                    op = cpy;
+
+                    // get offset
+                    {
+                        r = cpy - *(ushort*)ip;
+                    }
+
+                    ip += 2;
+                    if (r < decompressedBuffer)
+                    {
+                        goto _output_error;
+                    }
+
+                    // get matchLength
+                    if ((length = (int)(token & LZ4Util.ML_MASK)) == LZ4Util.ML_MASK)
+                    {
+                        for (; *ip == 255; length += 255)
+                        {
+                            ip++;
+                        }
+
+                        length += *ip++;
+                    }
+
+                    // copy repeated sequence
+                    if (op - r < STEPSIZE)
+                    {
+                        var dec2 = dec2Ptr[(int)(op - r)];
+
+                        *op++ = *r++;
+                        *op++ = *r++;
+                        *op++ = *r++;
+                        *op++ = *r++;
+                        r -= dec[op - r];
+                        *(uint*)op = *(uint*)r;
+                        op += STEPSIZE - 4;
+                        r -= dec2;
+                    }
+                    else
+                    {
+                        *(ulong*)op = *(ulong*)r;
+                        op += 8;
+                        r += 8;
+                    }
+
+                    cpy = op + length - (STEPSIZE - 4);
+                    if (cpy > oend - LZ4Util.COPYLENGTH)
+                    {
+                        if (cpy > oend)
+                        {
+                            goto _output_error;
+                        }
+
+                        while (op < (oend - LZ4Util.COPYLENGTH))
+                        {
+                            *(ulong*)op = *(ulong*)r;
+                            op += 8;
+                            r += 8;
+                        }
+
+                        while (op < cpy)
+                        {
+                            *op++ = *r++;
+                        }
+
+                        op = cpy;
+                        if (op == oend)
+                        {
+                            break;
+                        }
+
+                        continue;
+                    }
+
+                    while (op < cpy)
+                    {
+                        *(ulong*)op = *(ulong*)r;
+                        op += 8;
+                        r += 8;
+                    }
+
                     op = cpy; // correction
                 }
 

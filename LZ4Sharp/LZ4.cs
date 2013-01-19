@@ -1,9 +1,4 @@
-using System;
-using System.Diagnostics;
-using System.Reflection.Emit;
-using System.Runtime.InteropServices;
-
-namespace LZ4Sharp
+namespace LZ4SharpCustom
 {
     /// <summary>
     /// Static LZ4 Compression and Decompression. This is threadsafe because it creates new instances of the
@@ -16,6 +11,7 @@ namespace LZ4Sharp
         {
             return LZ4CompressorFactory.CreateNew().Compress(source);
         }
+
 
         /// <summary>
         /// Calculate the max compressed byte[] size given the size of the uncompressed byte[]

@@ -1,20 +1,13 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Diagnostics;
-
-namespace LZ4Sharp
+namespace LZ4SharpCustom
 {
-
-
-
-
+    using System;
+    using System.Diagnostics;
+    using System.IO;
 
     /// <summary>
     /// Class for decompressing an LZ4 compressed byte array.
     /// </summary>
-     public unsafe class LZ4Decompressor32 : ILZ4Decompressor
+    public unsafe class LZ4Decompressor32 : ILZ4Decompressor
     {
         const int STEPSIZE = 4;
 
@@ -26,7 +19,7 @@ namespace LZ4Sharp
         //**************************************
         // Macros
         //**************************************
-        readonly sbyte[] m_DecArray = new sbyte[8] { 0, 3, 2, 3,0,0,0,0 };
+        readonly sbyte[] m_DecArray = new sbyte[8] { 0, 3, 2, 3, 0, 0, 0, 0 };
         // Note : The decoding functions LZ4_uncompress() and LZ4_uncompress_unknownOutputSize()
         //              are safe against "buffer overflow" attack type
         //              since they will *never* write outside of the provided output buffer :
@@ -48,11 +41,159 @@ namespace LZ4Sharp
             fixed (byte* dst = decompressedBuffer)
                 return DecompressKnownSize(src, dst, decompressedSize);
         }
+
+        public int DecompressFromReader(Stream reader, byte[] decompressedBuffer, int decompressedSize)
+        {
+            var binaryReader = new BinaryReader(reader);
+            fixed (byte* dst = decompressedBuffer)
+                return this.DecompressFromReader(binaryReader, dst, decompressedSize);
+        }
+
+        public int DecompressFromReader(BinaryReader reader, byte* decompressedBuffer, int decompressedSize)
+        {
+            fixed (sbyte* dec = this.m_DecArray)
+            {
+                // Local Variables
+                byte* op = decompressedBuffer;
+                byte* oend = op + decompressedSize;
+
+                // Main Loop
+                while (true)
+                {
+                    // get runLength
+                    byte token = reader.ReadByte();
+                    int length;
+                    if ((length = token >> LZ4Util.ML_BITS) == LZ4Util.RUN_MASK)
+                    {
+                        int len;
+                        for (; (len = reader.ReadByte()) == 255; length += 255)
+                        {
+                        }
+
+                        length += len;
+                    }
+
+                    byte* cpy = op + length;
+                    if (cpy > oend - LZ4Util.COPYLENGTH)
+                    {
+                        if (cpy > oend)
+                        {
+                            goto _output_error;
+                        }
+
+                        LZ4Util.CopyMemory(op, reader, length);
+                        break;
+                    }
+
+                    if (op < cpy)
+                    {
+                        LZ4Util.CopyMemory(op, reader, cpy - op);
+                    }
+
+                    op = cpy;
+
+                    // get offset
+                    byte* r;
+                    {
+                        r = cpy - reader.ReadUInt16();
+                    }
+
+                    if (r < decompressedBuffer)
+                    {
+                        goto _output_error;
+                    }
+
+                    // get matchLength
+                    if ((length = (int)(token & LZ4Util.ML_MASK)) == LZ4Util.ML_MASK)
+                    {
+                        byte b = reader.ReadByte();
+
+                        for (; b == 255; length += 255)
+                        {
+                            b = reader.ReadByte();
+                        }
+
+                        length += b;
+                    }
+
+                    // copy repeated sequence
+                    if (op - r < STEPSIZE)
+                    {
+                        *(uint*)op = *(uint*)r;
+                        *op++ = *r++;
+                        *op++ = *r++;
+                        *op++ = *r++;
+                        *op++ = *r++;
+                        r -= dec[op - r];
+                        *(uint*)op = *(uint*)r;
+                        op += STEPSIZE - 4;
+                    }
+                    else
+                    {
+                        *(uint*)op = *(uint*)r;
+                        op += 4;
+                        r += 4;
+                    }
+
+                    cpy = op + length - (STEPSIZE - 4);
+                    if (cpy > oend - LZ4Util.COPYLENGTH)
+                    {
+                        if (cpy > oend)
+                        {
+                            goto _output_error;
+                        }
+
+                        do
+                        {
+                            *(uint*)op = *(uint*)r;
+                            op += 4;
+                            r += 4;
+                            *(uint*)op = *(uint*)r;
+                            op += 4;
+                            r += 4;
+                        }
+                        while (op < (oend - LZ4Util.COPYLENGTH));
+
+                        while (op < cpy)
+                        {
+                            *op++ = *r++;
+                        }
+
+                        op = cpy;
+                        if (op == oend)
+                        {
+                            break;
+                        }
+
+                        continue;
+                    }
+
+                    do
+                    {
+                        *(uint*)op = *(uint*)r;
+                        op += 4;
+                        r += 4;
+
+                        *(uint*)op = *(uint*)r;
+                        op += 4;
+                        r += 4;
+                    }
+                    while (op < cpy);
+                    op = cpy; // correction
+                }
+
+                // end of decoding
+                return 0;// (int)(((byte*)ip) - compressed);
+
+                // write overflow error detected
+            _output_error:
+                return -1;// (int)(-(((byte*)ip) - compressed));
+            }
+        }
+
         public int DecompressKnownSize(byte* compressed, byte* decompressedBuffer, int decompressedSize)
         {
             fixed (sbyte* dec = m_DecArray)
-
-
             {
                 // Local Variables
                 byte* ip = (byte*)compressed;
@@ -77,18 +218,21 @@ namespace LZ4Sharp
                     cpy = op + length;
                     if (cpy > oend - LZ4Util.COPYLENGTH)
                     {
-                        if (cpy > oend) goto _output_error;
+                        if (cpy > oend)
+                        {
+                            goto _output_error;
+                        }
                         LZ4Util.CopyMemory(op, ip, length);
                         ip += length;
                         break;
                     }
 
-                    do { *(uint*)op = *(uint*)ip; op+=4; ip+=4;; *(uint*)op = *(uint*)ip; op+=4; ip+=4;; } while (op<cpy);; ip -= (op - cpy); op = cpy;
+                    do { *(uint*)op = *(uint*)ip; op += 4; ip += 4; ; *(uint*)op = *(uint*)ip; op += 4; ip += 4; ; } while (op < cpy); ; ip -= (op - cpy); op = cpy;
 
 
                     // get offset
-                    { r = (cpy) - *(ushort*)ip; }; ip+=2;
-     if(r < decompressedBuffer) goto _output_error;
+                    { r = (cpy) - *(ushort*)ip; }; ip += 2;
+                    if (r < decompressedBuffer) goto _output_error;
 
                     // get matchLength
                     if ((length = (int)(token & LZ4Util.ML_MASK)) == LZ4Util.ML_MASK) { for (; *ip == 255; length += 255) { ip++; } length += *ip++; }
@@ -111,20 +255,20 @@ namespace LZ4Sharp
                         *(uint*)op = *(uint*)r; op += STEPSIZE - 4;
                         r -= dec2;
                     }
-                    else { *(uint*)op = *(uint*)r; op+=4; r+=4;; }
+                    else { *(uint*)op = *(uint*)r; op += 4; r += 4; ; }
                     cpy = op + length - (STEPSIZE - 4);
                     if (cpy > oend - LZ4Util.COPYLENGTH)
                     {
                         if (cpy > oend) goto _output_error;
 
-                        do { *(uint*)op = *(uint*)r; op+=4; r+=4;; *(uint*)op = *(uint*)r; op+=4; r+=4;; } while (op<(oend - LZ4Util.COPYLENGTH));;
+                        do { *(uint*)op = *(uint*)r; op += 4; r += 4; ; *(uint*)op = *(uint*)r; op += 4; r += 4; ; } while (op < (oend - LZ4Util.COPYLENGTH)); ;
                         while (op < cpy) *op++ = *r++;
                         op = cpy;
                         if (op == oend) break;
                         continue;
                     }
 
-                    do { *(uint*)op = *(uint*)r; op+=4; r+=4;; *(uint*)op = *(uint*)r; op+=4; r+=4;; } while (op<cpy);;
+                    do { *(uint*)op = *(uint*)r; op += 4; r += 4; ; *(uint*)op = *(uint*)r; op += 4; r += 4; ; } while (op < cpy); ;
                     op = cpy; // correction
                 }
 
@@ -139,10 +283,10 @@ namespace LZ4Sharp
 
         public byte[] Decompress(byte[] compressed)
         {
-   int length = compressed.Length;
+            int length = compressed.Length;
             int len;
             byte[] dest;
-   const int Multiplier = 4; // Just a number. Determines how fast length should increase.
+            const int Multiplier = 4; // Just a number. Determines how fast length should increase.
             do
             {
                 length *= Multiplier;
@@ -182,9 +326,6 @@ namespace LZ4Sharp
             int maxDecompressedSize)
         {
             fixed (sbyte* dec = m_DecArray)
-
-
-
             {
                 // Local Variables
                 byte* ip = (byte*)compressedBuffer;
@@ -204,29 +345,29 @@ namespace LZ4Sharp
                 {
                     // get runLength
                     token = *ip++;
-  if ((length=(token>>LZ4Util.ML_BITS)) == LZ4Util.RUN_MASK) { int s=255; while ((ip<iend) && (s==255)) { s=*ip++; length += s; } }
+                    if ((length = (token >> LZ4Util.ML_BITS)) == LZ4Util.RUN_MASK) { int s = 255; while ((ip < iend) && (s == 255)) { s = *ip++; length += s; } }
 
                     // copy literals
                     cpy = op + length;
-  if ((cpy>oend-LZ4Util.COPYLENGTH) || (ip+length>iend-LZ4Util.COPYLENGTH))
+                    if ((cpy > oend - LZ4Util.COPYLENGTH) || (ip + length > iend - LZ4Util.COPYLENGTH))
                     {
-   if (cpy > oend) goto _output_error; // Error : request to write beyond destination buffer
-   if (ip+length > iend) goto _output_error; // Error : request to read beyond source buffer
+                        if (cpy > oend) goto _output_error; // Error : request to write beyond destination buffer
+                        if (ip + length > iend) goto _output_error; // Error : request to read beyond source buffer
                         LZ4Util.CopyMemory(op, ip, length);
                         op += length;
-   ip += length;
-   if (ip<iend) goto _output_error; // Error : LZ4 format violation
+                        ip += length;
+                        if (ip < iend) goto _output_error; // Error : LZ4 format violation
                         break; //Necessarily EOF
                     }
 
-                    do { *(uint*)op = *(uint*)ip; op+=4; ip+=4;; *(uint*)op = *(uint*)ip; op+=4; ip+=4;; } while (op<cpy);; ip -= (op - cpy); op = cpy;
+                    do { *(uint*)op = *(uint*)ip; op += 4; ip += 4; ; *(uint*)op = *(uint*)ip; op += 4; ip += 4; ; } while (op < cpy); ; ip -= (op - cpy); op = cpy;
 
                     // get offset
-                    { r = (cpy) - *(ushort*)ip; }; ip+=2;
+                    { r = (cpy) - *(ushort*)ip; }; ip += 2;
                     if (r < decompressedBuffer) goto _output_error;
 
                     // get matchlength
-  if ((length=(int)(token&LZ4Util.ML_MASK)) == LZ4Util.ML_MASK) { while (ip<iend) { int s = *ip++; length +=s; if (s==255) continue; break; } }
+                    if ((length = (int)(token & LZ4Util.ML_MASK)) == LZ4Util.ML_MASK) { while (ip < iend) { int s = *ip++; length += s; if (s == 255) continue; break; } }
 
                     // copy repeated sequence
                     if (op - r < STEPSIZE)
@@ -234,7 +375,7 @@ namespace LZ4Sharp
 
 
 
-               const int dec2 = 0;
+                        const int dec2 = 0;
 
 
                         *op++ = *r++;
@@ -245,19 +386,19 @@ namespace LZ4Sharp
                         *(uint*)op = *(uint*)r; op += STEPSIZE - 4;
                         r -= dec2;
                     }
-                    else { *(uint*)op = *(uint*)r; op+=4; r+=4;; }
+                    else { *(uint*)op = *(uint*)r; op += 4; r += 4; ; }
                     cpy = op + length - (STEPSIZE - 4);
                     if (cpy > oend - LZ4Util.COPYLENGTH)
                     {
                         if (cpy > oend) goto _output_error;
 
-                        do { *(uint*)op = *(uint*)r; op+=4; r+=4;; *(uint*)op = *(uint*)r; op+=4; r+=4;; } while (op<(oend - LZ4Util.COPYLENGTH));;
+                        do { *(uint*)op = *(uint*)r; op += 4; r += 4; ; *(uint*)op = *(uint*)r; op += 4; r += 4; ; } while (op < (oend - LZ4Util.COPYLENGTH)); ;
                         while (op < cpy) *op++ = *r++;
                         op = cpy;
                         if (op == oend) break; // Check EOF (should never happen, since last 5 bytes are supposed to be literals)
                         continue;
                     }
-                    do { *(uint*)op = *(uint*)r; op+=4; r+=4;; *(uint*)op = *(uint*)r; op+=4; r+=4;; } while (op<cpy);;
+                    do { *(uint*)op = *(uint*)r; op += 4; r += 4; ; *(uint*)op = *(uint*)r; op += 4; r += 4; ; } while (op < cpy); ;
                     op = cpy; // correction
                 }
 
